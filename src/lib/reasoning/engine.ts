@@ -420,7 +420,7 @@ export function reason(input: ReasoningInput): PsychologicalFormulation {
     formulation_id: id("form"),
     status,
     summary:
-      "Dựa trên mô tả, có thể có một số cơ chế tâm lý liên quan; đây là các giả thuyết có mức phù hợp khác nhau, không phải kết luận hay chẩn đoán.",
+      "Dựa trên mô tả, có thể có một số cơ chế tâm lý liên quan; đây là các giả thuyết có mức phù hợp khác nhau, không phải một kết luận cuối cùng.",
     observations,
     event: {
       description:
