@@ -5,6 +5,7 @@
 - Supabase project (Production)
 - OpenAI (or chosen) API key if `AI_PROVIDER=openai`
 
+
 ## 1. Supabase Production
 **Production project (created Phase 14):**
 - Name: `psychological-self-understanding-production`
