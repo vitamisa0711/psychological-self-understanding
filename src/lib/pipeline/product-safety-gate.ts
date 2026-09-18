@@ -291,8 +291,21 @@ export async function analyzeUserInput(
     generationStatus = gen.status;
     if (gen.status === "OK") {
       aiOutput = gen.formulation ?? null;
+    } else {
+      console.error(
+        "[generation] non-OK result:",
+        gen.status,
+        "reason:",
+        gen.reason ?? "(none)",
+        "provider:",
+        gen.provider ?? "(none)"
+      );
     }
-  } catch {
+  } catch (err) {
+    console.error(
+      "[generation] generateControlled threw, degrading to GENERATION_FAILED:",
+      err instanceof Error ? `${err.name}: ${err.message}` : "unknown error"
+    );
     generationStatus = "GENERATION_FAILED";
   }
 
