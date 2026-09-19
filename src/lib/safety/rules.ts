@@ -31,9 +31,7 @@ interface RuleDef {
   id: string;
   category: SafetySignal["category"];
   severity: SafetySignal["severity"];
-  /** All patterns must be considered; matching one explicit pattern triggers */
   patterns: RegExp[];
-  /** If true, suppress when figurative markers present */
   suppressIfFigurative?: boolean;
 }
 
@@ -102,9 +100,6 @@ const EXPLICIT_RULES: RuleDef[] = [
     category: "CHILD_SAFETY",
     severity: "CRITICAL",
     patterns: [
-      // Allow natural phrasing between the subject and the risk term, e.g.
-      // "đứa trẻ đang ở trong tình trạng nguy hiểm" (not just directly
-      // adjacent words), while staying within one clause/sentence.
       /đứa\s*trẻ[^.!?]{0,40}?(nguy\s*hiểm|hành\s*hung|bạo\s*hành|bỏ\s*rơi)/i,
       /con\s*(tôi|em)[^.!?]{0,40}?(bị\s*đánh|nguy\s*hiểm)/i,
     ],
@@ -129,7 +124,6 @@ const EXPLICIT_RULES: RuleDef[] = [
   },
 ];
 
-/** Moderate signals — continue reasoning allowed */
 const MODERATE_RULES: RuleDef[] = [
   {
     id: "passive-death-wish",
@@ -149,12 +143,21 @@ export interface RuleDetectionResult {
   riskLevel: RiskLevel;
 }
 
-function matchRules(text: string, rules: RuleDef[], figurative: boolean): SafetySignal[] {
+function matchRules(
+  text: string,
+  rules: RuleDef[],
+  figurative: boolean,
+  textForSuppressible: string = text
+): SafetySignal[] {
   const signals: SafetySignal[] = [];
   for (const rule of rules) {
     if (rule.suppressIfFigurative && figurative) continue;
+    // For suppressIfFigurative rules, test against the possibly-stripped text
+    // (quoted third-party spans removed) so that a friend's reported words
+    // don't trigger first-person intent rules as if the user said them.
+    const textToTest = rule.suppressIfFigurative ? textForSuppressible : text;
     for (const pattern of rule.patterns) {
-      if (pattern.test(text)) {
+      if (pattern.test(textToTest)) {
         signals.push({
           signalId: `rule-${rule.id}`,
           category: rule.category,
@@ -183,15 +186,30 @@ function maxSeverityToRisk(signals: SafetySignal[]): RiskLevel {
   return max;
 }
 
-/**
- * Run deterministic rule layer.
- */
+// Patterns that introduce a direct quote from a third party.
+// Used to avoid escalating "Bạn tôi nói: 'Tôi muốn chết.'" as user intent.
+const THIRD_PARTY_QUOTE_LEADERS = [
+  /bạn\s*(tôi|mình|em).*?(nói|nhắn|bảo|viết)\s*[:：]?\s*/i,
+  /(nó|hắn|cô\s*ấy|anh\s*ấy|họ)\s*(nói|nhắn)\s*[:：]?\s*/i,
+];
+
+function hasThirdPartyQuote(text: string): boolean {
+  return THIRD_PARTY_QUOTE_LEADERS.some((p) => p.test(text));
+}
+
+function stripQuotedSpans(text: string): string {
+  return text.replace(/[«"""][^«»"""']*[»"""']/g, " ");
+}
+
 export function detectSafetyRules(input: SafetyInput): RuleDetectionResult {
   const text = input.text;
   const figurative = isLikelyFigurative(text);
 
-  const explicit = matchRules(text, EXPLICIT_RULES, figurative);
-  const moderate = matchRules(text, MODERATE_RULES, figurative);
+  const isQuotedContext = hasThirdPartyQuote(text);
+  const textForFirstPerson = isQuotedContext ? stripQuotedSpans(text) : text;
+
+  const explicit = matchRules(text, EXPLICIT_RULES, figurative, textForFirstPerson);
+  const moderate = matchRules(text, MODERATE_RULES, figurative, textForFirstPerson);
   const signals = [...explicit, ...moderate];
 
   return {
